@@ -1,0 +1,1289 @@
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.RandomAccessFile;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+// program to  implement a simple statistical retrieval system, using inverted list index
+class Stemmer {
+	private String Clean(String str) {
+		int last = str.length();
+
+		Character ch = new Character(str.charAt(0));
+		String temp = "";
+
+		for (int i = 0; i < last; i++) {
+			if (ch.isLetterOrDigit(str.charAt(i)))
+				temp += str.charAt(i);
+		}
+
+		return temp;
+	}
+
+	private boolean hasSuffix(String word, String suffix, NewString stem) {
+
+		String tmp = "";
+
+		if (word.length() <= suffix.length())
+			return false;
+		if (suffix.length() > 1)
+			if (word.charAt(word.length() - 2) != suffix
+					.charAt(suffix.length() - 2))
+				return false;
+
+		stem.str = "";
+
+		for (int i = 0; i < word.length() - suffix.length(); i++)
+			stem.str += word.charAt(i);
+		tmp = stem.str;
+
+		for (int i = 0; i < suffix.length(); i++)
+			tmp += suffix.charAt(i);
+
+		if (tmp.compareTo(word) == 0)
+			return true;
+		else
+			return false;
+	}
+
+	private boolean vowel(char ch, char prev) {
+		switch (ch) {
+		case 'a':
+		case 'e':
+		case 'i':
+		case 'o':
+		case 'u':
+			return true;
+		case 'y': {
+
+			switch (prev) {
+			case 'a':
+			case 'e':
+			case 'i':
+			case 'o':
+			case 'u':
+				return false;
+
+			default:
+				return true;
+			}
+		}
+
+		default:
+			return false;
+		}
+	}
+
+	private int measure(String stem) {
+
+		int i = 0, count = 0;
+		int length = stem.length();
+
+		while (i < length) {
+			for (; i < length; i++) {
+				if (i > 0) {
+					if (vowel(stem.charAt(i), stem.charAt(i - 1)))
+						break;
+				} else {
+					if (vowel(stem.charAt(i), 'a'))
+						break;
+				}
+			}
+
+			for (i++; i < length; i++) {
+				if (i > 0) {
+					if (!vowel(stem.charAt(i), stem.charAt(i - 1)))
+						break;
+				} else {
+					if (!vowel(stem.charAt(i), '?'))
+						break;
+				}
+			}
+			if (i < length) {
+				count++;
+				i++;
+			}
+		}
+
+		return (count);
+	}
+
+	private boolean containsVowel(String word) {
+		for (int i = 0; i < word.length(); i++)
+			if (i > 0) {
+				if (vowel(word.charAt(i), word.charAt(i - 1)))
+					return true;
+			} else {
+				if (vowel(word.charAt(0), 'a'))
+					return true;
+			}
+
+		return false;
+	}
+
+	private boolean cvc(String str) {
+		int length = str.length();
+
+		if (length < 3)
+			return false;
+
+		if ((!vowel(str.charAt(length - 1), str.charAt(length - 2)))
+				&& (str.charAt(length - 1) != 'w')
+				&& (str.charAt(length - 1) != 'x')
+				&& (str.charAt(length - 1) != 'y')
+				&& (vowel(str.charAt(length - 2), str.charAt(length - 3)))) {
+
+			if (length == 3) {
+				if (!vowel(str.charAt(0), '?'))
+					return true;
+				else
+					return false;
+			} else {
+				if (!vowel(str.charAt(length - 3), str.charAt(length - 4)))
+					return true;
+				else
+					return false;
+			}
+		}
+
+		return false;
+	}
+
+	private String step1(String str) {
+
+		NewString stem = new NewString();
+
+		if (str.charAt(str.length() - 1) == 's') {
+			if ((hasSuffix(str, "sses", stem)) || (hasSuffix(str, "ies", stem))) {
+				String tmp = "";
+				for (int i = 0; i < str.length() - 2; i++)
+					tmp += str.charAt(i);
+				str = tmp;
+			} else {
+				if ((str.length() == 1)
+						&& (str.charAt(str.length() - 1) == 's')) {
+					str = "";
+					return str;
+				}
+				if (str.charAt(str.length() - 2) != 's') {
+					String tmp = "";
+					for (int i = 0; i < str.length() - 1; i++)
+						tmp += str.charAt(i);
+					str = tmp;
+				}
+			}
+		}
+
+		if (hasSuffix(str, "eed", stem)) {
+			if (measure(stem.str) > 0) {
+				String tmp = "";
+				for (int i = 0; i < str.length() - 1; i++)
+					tmp += str.charAt(i);
+				str = tmp;
+			}
+		} else {
+			if ((hasSuffix(str, "ed", stem)) || (hasSuffix(str, "ing", stem))) {
+				if (containsVowel(stem.str)) {
+
+					String tmp = "";
+					for (int i = 0; i < stem.str.length(); i++)
+						tmp += str.charAt(i);
+					str = tmp;
+					if (str.length() == 1)
+						return str;
+
+					if ((hasSuffix(str, "at", stem))
+							|| (hasSuffix(str, "bl", stem))
+							|| (hasSuffix(str, "iz", stem))) {
+						str += "e";
+
+					} else {
+						int length = str.length();
+						if ((str.charAt(length - 1) == str.charAt(length - 2))
+								&& (str.charAt(length - 1) != 'l')
+								&& (str.charAt(length - 1) != 's')
+								&& (str.charAt(length - 1) != 'z')) {
+
+							tmp = "";
+							for (int i = 0; i < str.length() - 1; i++)
+								tmp += str.charAt(i);
+							str = tmp;
+						} else if (measure(str) == 1) {
+							if (cvc(str))
+								str += "e";
+						}
+					}
+				}
+			}
+		}
+
+		if (hasSuffix(str, "y", stem))
+			if (containsVowel(stem.str)) {
+				String tmp = "";
+				for (int i = 0; i < str.length() - 1; i++)
+					tmp += str.charAt(i);
+				str = tmp + "i";
+			}
+		return str;
+	}
+
+	private String step2(String str) {
+
+		String[][] suffixes = { { "ational", "ate" }, { "tional", "tion" },
+				{ "enci", "ence" }, { "anci", "ance" }, { "izer", "ize" },
+				{ "iser", "ize" }, { "abli", "able" }, { "alli", "al" },
+				{ "entli", "ent" }, { "eli", "e" }, { "ousli", "ous" },
+				{ "ization", "ize" }, { "isation", "ize" }, { "ation", "ate" },
+				{ "ator", "ate" }, { "alism", "al" }, { "iveness", "ive" },
+				{ "fulness", "ful" }, { "ousness", "ous" }, { "aliti", "al" },
+				{ "iviti", "ive" }, { "biliti", "ble" } };
+		NewString stem = new NewString();
+
+		for (int index = 0; index < suffixes.length; index++) {
+			if (hasSuffix(str, suffixes[index][0], stem)) {
+				if (measure(stem.str) > 0) {
+					str = stem.str + suffixes[index][1];
+					return str;
+				}
+			}
+		}
+
+		return str;
+	}
+
+	private String step3(String str) {
+
+		String[][] suffixes = { { "icate", "ic" }, { "ative", "" },
+				{ "alize", "al" }, { "alise", "al" }, { "iciti", "ic" },
+				{ "ical", "ic" }, { "ful", "" }, { "ness", "" } };
+		NewString stem = new NewString();
+
+		for (int index = 0; index < suffixes.length; index++) {
+			if (hasSuffix(str, suffixes[index][0], stem))
+				if (measure(stem.str) > 0) {
+					str = stem.str + suffixes[index][1];
+					return str;
+				}
+		}
+		return str;
+	}
+
+	private String step4(String str) {
+
+		String[] suffixes = { "al", "ance", "ence", "er", "ic", "able", "ible",
+				"ant", "ement", "ment", "ent", "sion", "tion", "ou", "ism",
+				"ate", "iti", "ous", "ive", "ize", "ise" };
+
+		NewString stem = new NewString();
+
+		for (int index = 0; index < suffixes.length; index++) {
+			if (hasSuffix(str, suffixes[index], stem)) {
+
+				if (measure(stem.str) > 1) {
+					str = stem.str;
+					return str;
+				}
+			}
+		}
+		return str;
+	}
+
+	private String step5(String str) {
+
+		if (str.charAt(str.length() - 1) == 'e') {
+			if (measure(str) > 1) {/*
+									 * measure(str)==measure(stem) if ends in
+									 * vowel
+									 */
+				String tmp = "";
+				for (int i = 0; i < str.length() - 1; i++)
+					tmp += str.charAt(i);
+				str = tmp;
+			} else if (measure(str) == 1) {
+				String stem = "";
+				for (int i = 0; i < str.length() - 1; i++)
+					stem += str.charAt(i);
+
+				if (!cvc(stem))
+					str = stem;
+			}
+		}
+
+		if (str.length() == 1)
+			return str;
+		if ((str.charAt(str.length() - 1) == 'l')
+				&& (str.charAt(str.length() - 2) == 'l') && (measure(str) > 1)) {
+			if (measure(str) > 1) {/*
+									 * measure(str)==measure(stem) if ends in
+									 * vowel
+									 */
+				String tmp = "";
+				for (int i = 0; i < str.length() - 1; i++)
+					tmp += str.charAt(i);
+				str = tmp;
+			}
+		}
+		return str;
+	}
+
+	private String stripPrefixes(String str) {
+
+		String[] prefixes = { "kilo", "micro", "milli", "intra", "ultra",
+				"mega", "nano", "pico", "pseudo" };
+
+		int last = prefixes.length;
+		for (int i = 0; i < last; i++) {
+			if (str.startsWith(prefixes[i])) {
+				String temp = "";
+				for (int j = 0; j < str.length() - prefixes[i].length(); j++)
+					temp += str.charAt(j + prefixes[i].length());
+				return temp;
+			}
+		}
+
+		return str;
+	}
+
+	private String stripSuffixes(String str) {
+
+		str = step1(str);
+		if (str.length() >= 1)
+			str = step2(str);
+		if (str.length() >= 1)
+			str = step3(str);
+		if (str.length() >= 1)
+			str = step4(str);
+		if (str.length() >= 1)
+			str = step5(str);
+
+		return str;
+	}
+
+	public String stripAffixes(String str) {
+
+		str = str.toLowerCase();
+		str = Clean(str);
+
+		if ((str != "") && (str.length() > 2)) {
+			str = stripPrefixes(str);
+
+			if (str != "")
+				str = stripSuffixes(str);
+
+		}
+
+		return str;
+	}
+
+}
+
+class NewString {
+	public String str;
+
+	NewString() {
+		str = "";
+	}
+}
+
+/**
+ * 
+ * @author Sudharshan Narasimhan Vasudevan
+ *
+ */
+public class sxn132630_HW3 {
+
+	private static TreeMap<String, ArrayList<String>> doclist = new TreeMap<String, ArrayList<String>>();
+	private static TreeMap<String, Integer> doc_count = new TreeMap<String, Integer>();
+	private static BufferedReader br;
+	private static BufferedReader br1;
+	private static TreeMap<String, TreeMap<String, Integer>> term_count = new TreeMap<String, TreeMap<String, Integer>>();
+
+	private static TreeMap<String, Integer> WordList = new TreeMap<String, Integer>();
+	private static TreeMap<String, TreeMap<String, Integer>> word_occurances = new TreeMap<String, TreeMap<String, Integer>>();
+	private static TreeMap<String, Map.Entry<String, Integer>> most_frequent = new TreeMap<String, Map.Entry<String, Integer>>();
+	private static int collectionSize = 0;
+	private static TreeMap<String, Integer> wordsindoc = new TreeMap<String, Integer>();
+	private static TreeMap<String, Values> dictionary = new TreeMap<String, Values>();
+
+	private static TreeMap<String, ArrayList<PostingsValues>> postings = new TreeMap<String, ArrayList<PostingsValues>>();
+	private static TreeMap<String, HashMap<Values, ArrayList<PostingsValues>>> index = new TreeMap<String, HashMap<Values, ArrayList<PostingsValues>>>();
+	private static Set<String> tag_names = new HashSet<String>();
+
+	private static TreeMap<String, ArrayList<PostingsValues>> container = new TreeMap<String, ArrayList<PostingsValues>>();
+	private static ArrayList<ArrayList<String>> termInQuery = new ArrayList<ArrayList<String>>();
+	private static TreeMap<String, String> headline = new TreeMap<String, String>();
+
+	public static void main(String args[]) throws IOException,
+			ClassCastException {
+		float start_time = System.nanoTime(); // The starting time of the
+												// program.
+
+		// number of the query
+		int query_number = 0;
+
+		final File folder = new File(args[0]);
+		final File stopwords = new File(args[1]);
+		final File queries = new File(args[2]);
+		final int docs_returned = 10;
+		PrintWriter writer = new PrintWriter(
+				args[3].concat("sxn132630_Indexed_Form_Of_Query.txt"));
+		// Stores the indexed form of the queries.
+		String arg3 = args[3];
+		process(folder);
+		removeStopWords(WordList, stopwords);
+
+		numofDocs(doclist);
+
+		numofTerms(folder, stopwords);
+
+		numofWordsIncStopWords(folder);
+
+		float dic = Dictionary();
+		printDictionary(arg3);
+
+		float post = Posting();
+		printPostings(arg3);
+
+		float combine = createIndex();
+		printIndex(arg3);
+
+		float index_time = (dic + post + combine) / 1000000000;
+
+		// Reads the queries from the file.
+		BufferedReader br = new BufferedReader(new FileReader(queries));
+		readQueries(br, stopwords);
+		br.close();
+
+		// Creates container Data Type.
+		for (ArrayList<String> s : termInQuery) {
+			createContainer(s);
+		}
+
+		// Indexed form of query
+		for (ArrayList<String> list : termInQuery) {
+			writer.println("Indexed form of query " + (++query_number));
+			writer.println(list);
+			writer.println("");
+
+		}
+
+		// Calculates Weight W1.
+		for (int i = 0; i < termInQuery.size(); i++) {
+			calculateWeightW1(i + 1, termInQuery.get(i), docs_returned, arg3);
+		}
+
+		// Calculates Weight W2.
+		for (int i = 0; i < termInQuery.size(); i++) {
+			calculateWeightW2(i + 1, termInQuery.get(i), docs_returned, arg3);
+		}
+
+		float end_time = System.nanoTime(); // The ending time of the program.
+		System.out.println("Success!");
+		System.out.println("Running time in seconds: "
+				+ (end_time - start_time) / 1000000000);
+
+		writer.close();
+	}
+
+	public static void process(final File folder) throws IOException {
+		// For every file in the particular folder.
+		for (final File file : folder.listFiles()) {
+
+			br = new BufferedReader(new FileReader(file)); // Initialize
+															// BufferedReader
+															// for that file.
+
+			collectionSize++;
+			Values val = new Values();
+			Processheadline(file, tag_names);
+			WordList(file, tag_names, val);
+		}
+	}
+
+	/*
+	 * This method takes the file as the argument and returns the number of tags
+	 * in the particular file.
+	 */
+	public static int Processheadline(File file, Set<String> tag_names)
+			throws IOException {
+		String line;
+		int tag_count = 0;
+
+		RandomAccessFile raf = new RandomAccessFile(file, "r");
+		br = new BufferedReader(new FileReader(file));
+
+		while ((line = br.readLine()) != null) {
+			/*
+			 * Gets the headline for each document.
+			 */
+			raf.readLine();
+			if (line.toLowerCase().contains("<title>")) {
+				String input;
+
+				while (!(input = raf.readLine()).toLowerCase().equals(
+						"</title>")) {
+					// System.out.println(file.getName());
+					if (headline.get(file.getName()) == null) {
+						headline.put(file.getName(), input);
+					} else {
+						headline.put(file.getName(),
+								headline.get(file.getName()) + " " + input);
+					}
+				}
+			}
+
+			/*
+			 * If the line contains a '<', it is considered a tag and tag_count
+			 * is incremented.
+			 */
+			if (line.contains("<")) {
+				tag_count++;
+
+				String b = line.replaceAll("[<>/]", "");
+				tag_names.add(b);
+			}
+		}
+
+		raf.close();
+		tag_count /= 2; // Since each tag represent the beginning and the end,
+						// we divide it by two to get the actual count.
+		return tag_count;
+	}
+
+	/*
+	 * Creates a hashtable with the tokens and their frequencies.
+	 */
+	public static void WordList(File file, Set<String> tag_names, Values val)
+			throws IOException {
+		String line;
+		String words[];
+		Stemmer stem = new Stemmer();
+
+		br = new BufferedReader(new FileReader(file));
+		// br1 = new BufferedReader(new FileReader("stopwords.txt"));
+
+		while ((line = br.readLine()) != null) {
+			String alphaOnly = line.replaceAll("[^a-zA-Z]+", " "); // Replace
+																	// everything
+																	// that is
+																	// not an
+																	// alphabet
+																	// with a
+																	// blank
+																	// space.
+
+			words = alphaOnly.split(" ");
+
+			int countWord = 0;
+
+			for (String word : words) {
+				if (!tag_names.contains(word) && !word.equals("")) {
+					word = word.toLowerCase(); // Converts all words to lower
+												// case.
+					word = stem.stripAffixes(word);
+
+					// add word if it isn't added already
+					if (!WordList.containsKey(word)) {
+						if (!word.equals(""))
+							// first occurance of this word
+							WordList.put(word, 1);
+						listofDocs(word, file);
+
+					} else {
+						countWord = WordList.get(word) + 1; // Get current
+															// count and
+															// increment
+						WordList.put(word, countWord); // Now put it back
+														// with new value
+						listofDocs(word, file);
+
+					}
+				}
+			}
+		}
+		// br1.close();
+	}
+
+	/*
+	 * Finds the list of documents containing the term
+	 */
+	public static void listofDocs(String word, File file) {
+		ArrayList<String> docs = new ArrayList<String>();
+
+		if (!word.equals("")) {
+			if (!doclist.containsKey(word)) {
+				docs.add(file.getName());
+				doclist.put(word, docs);
+			} else {
+				docs = doclist.get(word);
+				if (!docs.contains(file.getName())) {
+					docs.add(file.getName());
+					doclist.put(word, docs);
+				}
+			}
+		}
+	}
+
+	/*
+	 * Finds number of documents containing each term.
+	 */
+	public static void numofDocs(TreeMap<String, ArrayList<String>> doclist)
+			throws FileNotFoundException, UnsupportedEncodingException {
+		for (String key : doclist.keySet()) {
+			doc_count.put(key, doclist.get(key).size());
+		}
+	}
+
+	/*
+	 * Finds number of times, terms occurs in each document.
+	 */
+	public static void numofTerms(File folder, File stopwords)
+			throws IOException {
+		String line;
+		String words[];
+		Stemmer stem = new Stemmer();
+
+		for (File file : folder.listFiles()) {
+			TreeMap<String, Integer> tmap = new TreeMap<String, Integer>();
+			Map.Entry<String, Integer> max = null;
+
+			br = new BufferedReader(new FileReader(file));
+
+			while ((line = br.readLine()) != null) {
+				String alphaOnly = line.replaceAll("[^a-zA-Z]+", " "); // Replace
+																		// everything
+																		// that
+																		// is
+																		// not
+																		// an
+																		// alphabet
+																		// with
+																		// a
+																		// blank
+																		// space.
+
+				words = alphaOnly.split(" ");
+
+				int countWord = 0;
+
+				for (String word : words) {
+					if (!tag_names.contains(word) && !word.equals("")) {
+						word = word.toLowerCase(); // Converts all words to
+													// lower case.
+						word = stem.stripAffixes(word);
+
+						// Add word if it isn't added already
+						if (!tmap.containsKey(word)) {
+							if (!word.equals(""))
+								// first occurrence of this word
+								tmap.put(word, 1);
+						} else {
+							countWord = tmap.get(word) + 1; // Get current count
+															// and increment
+							tmap.put(word, countWord); // Now put it back with
+														// new value
+						}
+					}
+				}
+				word_occurances.put(file.getName(), tmap);
+				removeStopWords(tmap, stopwords);
+				term_count.put(file.getName(), tmap);
+
+				for (Map.Entry<String, Integer> entry : tmap.entrySet()) {
+					if (max == null
+							|| entry.getValue().compareTo(max.getValue()) > 0) {
+						max = entry;
+					}
+				}
+				most_frequent.put(file.getName(), max);
+			}
+		}
+	}
+
+	/*
+	 * Number of word occurences including stopwords.
+	 */
+	public static void numofWordsIncStopWords(File folder) throws IOException {
+		String line;
+		String words[];
+		Stemmer stem = new Stemmer();
+
+		for (File file : folder.listFiles()) {
+			int count = 0;
+			TreeMap<String, Integer> tmap = new TreeMap<String, Integer>();
+			br = new BufferedReader(new FileReader(file));
+
+			while ((line = br.readLine()) != null) {
+				String alphaOnly = line.replaceAll("[^a-zA-Z]+", " "); // Replace
+																		// everything
+																		// that
+																		// is
+																		// not
+																		// an
+																		// alphabet
+																		// with
+																		// a
+																		// blank
+																		// space.
+
+				words = alphaOnly.split(" ");
+
+				int countWord = 0;
+
+				for (String word : words) {
+					if (!tag_names.contains(word) && !word.equals("")) {
+						word = word.toLowerCase(); // Converts all words to
+													// lower case.
+						word = stem.stripAffixes(word);
+
+						// Add word if it isn't added already
+						if (!tmap.containsKey(word)) {
+							if (!word.equals(""))
+								// first occurrence of this word
+								tmap.put(word, 1);
+						} else {
+							countWord = tmap.get(word) + 1; // Get current count
+															// and increment
+							tmap.put(word, countWord); // Now put it back with
+														// new value
+						}
+					}
+				}
+				word_occurances.put(file.getName(), tmap);
+			}
+			for (int val : tmap.values()) {
+				count += val;
+			}
+			wordsindoc.put(file.getName(), count);
+		}
+	}
+
+	/*
+	 * Removes the stopwords from the index.
+	 */
+	public static void removeStopWords(TreeMap<String, Integer> listOfWords,
+			File stopwords) throws IOException {
+		String line;
+		br1 = new BufferedReader(new FileReader(stopwords));
+
+		while ((line = br1.readLine()) != null) {
+			line.replaceAll("\\s+", "");
+			if (listOfWords.containsKey(line)) {
+				listOfWords.remove(line);
+			}
+			if (doclist.containsKey(line)) {
+				doclist.remove(line);
+			}
+		}
+		br1.close();
+	}
+
+	/*
+	 * Remove stopwords from ArrayList
+	 */
+	public static void removeStopWords(ArrayList<String> terms, File stopwords)
+			throws IOException {
+		String line;
+		br1 = new BufferedReader(new FileReader(stopwords));
+
+		while ((line = br1.readLine()) != null) {
+			line.replaceAll("\\s+", "");
+
+			if (terms.contains(line)) {
+				terms.remove(line);
+			}
+		}
+		br1.close();
+	}
+
+	/*
+	 * Create the dictionary
+	 */
+	public static float Dictionary() {
+		float start_time = System.nanoTime();
+		for (String key : WordList.keySet()) {
+			Values val = new Values(doc_count.get(key), WordList.get(key));
+			dictionary.put(key, val);
+		}
+		float end_time = System.nanoTime();
+		return end_time - start_time;
+	}
+
+	/*
+	 * Prints the dictionary
+	 */
+	public static void printDictionary(String arg3)
+			throws FileNotFoundException, UnsupportedEncodingException {
+		PrintWriter writer = new PrintWriter(
+				arg3.concat("sxn132630_Dictionary.txt"), "UTF-8");
+
+		for (String key : dictionary.keySet()) {
+			Values val = dictionary.get(key);
+			writer.println(key);
+			val.print(writer);
+		}
+		writer.close();
+	}
+
+	/*
+	 * Create the posting
+	 */
+	public static float Posting() {
+		float start_time = System.nanoTime();
+		Values value = null;
+
+		for (String key : dictionary.keySet()) {
+			value = dictionary.get(key);
+			ArrayList<PostingsValues> pv = new ArrayList<PostingsValues>();
+			TreeMap<String, Integer> temp = new TreeMap<String, Integer>();
+
+			if (value.doc_freq == 1) {
+				String doc_id = doclist.get(key).get(0);
+				ArrayList<Integer> freq = new ArrayList<Integer>();
+
+				temp = term_count.get(doc_id);
+				freq.add(temp.get(key));
+
+				PostingsValues val = new PostingsValues(doclist.get(key), freq);
+				pv.add(val);
+				postings.put(key, pv);
+			} else {
+				ArrayList<String> doc_id = doclist.get(key);
+				ArrayList<Integer> freq = new ArrayList<Integer>();
+
+				for (String doc : doc_id) {
+					temp = term_count.get(doc);
+					freq.add(temp.get(key));
+				}
+
+				PostingsValues val = new PostingsValues(doclist.get(key), freq);
+				pv.add(val);
+				postings.put(key, pv);
+			}
+		}
+		float end_time = System.nanoTime();
+		return end_time - start_time;
+	}
+
+	/*
+	 * Print the postings
+	 */
+	public static void printPostings(String arg3) throws FileNotFoundException,
+			UnsupportedEncodingException {
+		PrintWriter writer = new PrintWriter(
+				arg3.concat("sxn132630_Postings.txt"), "UTF-8");
+
+		for (String key : postings.keySet()) {
+			ArrayList<PostingsValues> pv = postings.get(key);
+			writer.println(key);
+			for (PostingsValues val : pv) {
+				val.print(writer);
+			}
+		}
+		writer.close();
+	}
+
+	/*
+	 * Creates the index by combining the dictionary and postings
+	 */
+	public static float createIndex() {
+		float start_time = System.nanoTime();
+		for (String key : dictionary.keySet()) {
+			HashMap<Values, ArrayList<PostingsValues>> tm = new HashMap<Values, ArrayList<PostingsValues>>();
+			ArrayList<PostingsValues> pv = new ArrayList<PostingsValues>();
+
+			for (PostingsValues p : postings.get(key)) {
+				pv.add(p);
+			}
+			tm.put(dictionary.get(key), pv);
+			index.put(key, tm);
+		}
+		float end_time = System.nanoTime();
+		return end_time - start_time;
+	}
+
+	/*
+	 * Prints the creates index
+	 */
+	public static void printIndex(String arg3) throws FileNotFoundException,
+			UnsupportedEncodingException {
+		PrintWriter write = new PrintWriter(arg3.concat("sxn132630_Index.txt"),
+				"UTF-8");
+		for (String key : index.keySet()) {
+			ArrayList<PostingsValues> pv = postings.get(key);
+			write.println(key);
+
+			Values v = dictionary.get(key);
+			v.print(write);
+
+			for (PostingsValues val : pv) {
+				val.print(write);
+			}
+		}
+	}
+
+	/*
+	 * Returns df of term
+	 */
+	public static int returnDf(String term) {
+		Values val = null;
+		for (String key : dictionary.keySet()) {
+			if (key.equals(term)) {
+				val = dictionary.get(key);
+				break;
+			}
+		}
+		return val.doc_freq;
+	}
+
+	/*
+	 * Returns tf of term
+	 */
+	public static int returnTf(String term) {
+		Values val = null;
+		for (String key : dictionary.keySet()) {
+			if (key.equals(term)) {
+				val = dictionary.get(key);
+				break;
+			}
+		}
+		return val.total_freq;
+	}
+
+	/*
+	 * Reads the queries
+	 */
+	public static void readQueries(BufferedReader br, File stopwords)
+			throws IOException {
+		String line;
+		Stemmer stem = new Stemmer();
+		ArrayList<String> terms = null;
+		ArrayList<String> finalterms = null;
+
+		while ((line = br.readLine()) != null) {
+			if (line.contains("Q")) {
+				if (terms != null) {
+					removeStopWords(terms, stopwords);
+
+					for (String str : terms) {
+						String string = stem.stripAffixes(str);
+						finalterms.add(string);
+					}
+					termInQuery.add(finalterms);
+				}
+
+				terms = new ArrayList<String>();
+				finalterms = new ArrayList<String>();
+				continue;
+			} else {
+				String split[] = line.split(" ");
+
+				for (String s : split) {
+					if (!terms.contains(s)) {
+						if (!s.equals("")) {
+							terms.add(s);
+						}
+					}
+				}
+			}
+		}
+
+		removeStopWords(terms, stopwords);
+
+		for (String str : terms) {
+			String string = stem.stripAffixes(str);
+			finalterms.add(string);
+		}
+		termInQuery.add(finalterms);
+	}
+
+	/*
+	 * Populate container data structure.
+	 */
+	public static void createContainer(ArrayList<String> terms) {
+		for (String key : terms) {
+			if (postings.containsKey(key)) {
+				container.put(key, postings.get(key));
+			} else {
+				continue;
+			}
+		}
+	}
+
+	/*
+	 * Prints the container DT
+	 */
+	public static void printContainer() {
+		ArrayList<PostingsValues> al = null;
+
+		for (String key : container.keySet()) {
+			System.out.println(key);
+
+			al = container.get(key);
+
+			for (PostingsValues pv : al) {
+				pv.print();
+			}
+		}
+	}
+
+	/*
+	 * Calculates the weight W1
+	 */
+	public static void calculateWeightW1(int query_no, ArrayList<String> query,
+			int no_of_returned_docs, String arg3) throws IOException {
+		ArrayList<PostingsValues> pv = null;
+
+		TreeMap<String, Double> tmap = new TreeMap<String, Double>();
+
+		int df;
+		int tf;
+		int maxtf;
+		double weight1 = 0.0;
+
+		for (String term : query) {
+			if (container.containsKey(term)) {
+				pv = container.get(term);
+
+				for (PostingsValues p : pv) {
+					weight1 = 0;
+					df = p.doc_no.size();
+
+					for (int i = 0; i < df; i++) {
+						tf = p.freq.get(i);
+						maxtf = most_frequent.get(p.doc_no.get(i)).getValue();
+
+						if (tmap.get(p.doc_no.get(i)) != null) {
+							weight1 = tmap.get(p.doc_no.get(i))
+									+ (0.4 + 0.6 * Math.log(tf + 0.5)
+											/ Math.log(maxtf + 1.0))
+									* (Math.log(collectionSize / df) / Math
+											.log(collectionSize));
+						} else {
+							weight1 = (0.4 + 0.6 * Math.log(tf + 0.5)
+									/ Math.log(maxtf + 1.0))
+									* (Math.log(collectionSize / df) / Math
+											.log(collectionSize));
+						}
+						tmap.put(p.doc_no.get(i), weight1);
+					}
+				}
+			}
+
+		}
+		printW1(query_no, tmap, no_of_returned_docs, arg3);
+	}
+
+	/*
+	 * Prints the relevant documents for the particular query based on weight
+	 * W1.
+	 */
+	public static void printW1(int query_no, TreeMap<String, Double> tmap,
+			int no_of_returned_docs, String arg3) throws IOException {
+		PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(
+				arg3.concat("sxn132630_docs_by_W1.txt"), true))); // Stores
+		
+		Map<String, Double> map = null;
+		int count = 0;
+		writer.println("***********************************"+"Top 10 documents for Query "+query_no+"***************************************************");
+		
+		map = TreeComparator.sortByValue(tmap);
+
+		for (String key : map.keySet()) {
+			if (count < no_of_returned_docs) {
+				writer.println("Rank: " + (count + 1) + "  name:" + key
+						+ "\nScore: " + String.format("%.2f", map.get(key))
+						+ "\nHeadline: " + headline.get(key) + "\n");
+				count++;
+			}
+		}
+		writer.close();
+	}
+
+	/*
+	 * Calculates the weight W2
+	 */
+	public static void calculateWeightW2(int query_no, ArrayList<String> query,
+			int no_of_returned_docs, String arg3) throws IOException {
+		ArrayList<PostingsValues> pv = null;
+
+		TreeMap<String, Double> tmap = new TreeMap<String, Double>();
+
+		int df;
+		int tf;
+		int doclen = 0;
+		double weight2 = 0.0;
+		double avgdoclen = AvgDocLength();
+
+		for (String term : query) {
+			if (container.containsKey(term)) {
+				pv = container.get(term);
+
+				for (PostingsValues p : pv) {
+					weight2 = 0;
+					df = p.doc_no.size();
+
+					for (int i = 0; i < df; i++) {
+						tf = p.freq.get(i);
+						doclen = wordsindoc.get(p.doc_no.get(i));
+
+						if (tmap.get(p.doc_no.get(i)) != null) {
+							weight2 = tmap.get(p.doc_no.get(i))
+									+ (0.4 + 0.6
+											* (tf / (tf + 0.5 + 1.5 * (doclen / avgdoclen)))
+											* Math.log(collectionSize / df)
+											/ Math.log(collectionSize));
+
+						} else {
+							weight2 = (0.4 + 0.6
+									* (tf / (tf + 0.5 + 1.5 * (doclen / avgdoclen)))
+									* Math.log(collectionSize / df)
+									/ Math.log(collectionSize));
+						}
+						tmap.put(p.doc_no.get(i), weight2);
+					}
+				}
+			}
+		}
+		printW2(query_no, tmap, no_of_returned_docs, arg3);
+	}
+
+	/*
+	 * Prints the relevant documents for the particular query based on weight
+	 * W2.
+	 */
+	public static void printW2(int query_no, TreeMap<String, Double> tmap,
+			int no_of_returned_docs, String arg3) throws IOException {
+		PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(
+				arg3.concat("sxn132630_docs_by_W2.txt"), true)));
+		Map<String, Double> map = null;
+		int count = 0;
+		writer.println("***********************************"+"Top 10 documents for Query "+query_no+"***************************************************");
+		map = TreeComparator.sortByValue(tmap);
+
+		for (String key : map.keySet()) {
+			if (count < no_of_returned_docs) {
+				writer.println("Rank: " + (count + 1) + "  name:" + key
+						+ "\nScore: " + String.format("%.2f", map.get(key))
+						+ "\nHeadline: " + headline.get(key) + "\n");
+				count++;
+			}
+		}
+		writer.close();
+	}
+
+	/*
+	 * Returns the average document length in the collection, including
+	 * stopwords.
+	 */
+	public static double AvgDocLength() {
+		double avg = 0;
+
+		for (String key : wordsindoc.keySet()) {
+			avg += wordsindoc.get(key);
+		}
+		return avg;
+	}
+}
+
+// This class is used to sort the values in the HashMap based on Values rather
+// than Keys.
+class TreeComparator {
+	// Extending the Comparable class.
+	public static <String, Double extends Comparable<? super Double>> Map<String, Double> sortByValue(
+			Map<String, Double> map) {
+		LinkedList<Map.Entry<String, Double>> list = new LinkedList<Map.Entry<String, Double>>(
+				map.entrySet());
+
+		Collections.sort(list, new Comparator<Map.Entry<String, Double>>() {
+			public int compare(Map.Entry<String, Double> o1,
+					Map.Entry<String, Double> o2) {
+				return (o2.getValue()).compareTo(o1.getValue());
+			}
+		});
+
+		Map<String, Double> result = new LinkedHashMap<String, Double>();
+
+		for (Map.Entry<String, Double> entry : list) {
+			result.put(entry.getKey(), entry.getValue());
+		}
+		return result;
+	}
+}
+
+class Values {
+	int doc_freq;
+	int total_freq;
+
+	public Values(int doc_freq, int term_freq) {
+		this.doc_freq = doc_freq;
+		this.total_freq = term_freq;
+
+	}
+
+	public Values() {
+		doc_freq = 0;
+		total_freq = 0;
+	}
+
+	public void print(PrintWriter writer) {
+		writer.println(" " + doc_freq);
+		writer.println(" " + total_freq);
+	}
+}
+
+class PostingsValues {
+	ArrayList<String> doc_no;
+	ArrayList<Integer> freq;
+	ArrayList<String> gamma_freq;
+
+	public PostingsValues(ArrayList<String> doc_no, ArrayList<Integer> freq) {
+		this.doc_no = doc_no;
+		this.freq = freq;
+	}
+
+	public void Post(ArrayList<String> doc_no, ArrayList<String> freq) {
+		this.doc_no = doc_no;
+		this.gamma_freq = freq;
+	}
+
+	public PostingsValues() {
+		doc_no = null;
+		freq = null;
+		gamma_freq = null;
+	}
+
+	public void print(PrintWriter writer) {
+		int i = 0;
+
+		for (String doc : doc_no) {
+			writer.println(" " + doc);
+			writer.println(" " + freq.get(i));
+			i++;
+		}
+	}
+
+	public void print() {
+		int i = 0;
+
+		for (String doc : doc_no) {
+			System.out.println(" " + doc);
+			System.out.println(" " + freq.get(i));
+			i++;
+		}
+	}
+}
